@@ -53,7 +53,6 @@
     </p>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <!-- Video and Labels -->
         <div class="flex flex-col items-center">
             <div class="video-container mb-6">
                 <video id="webcam-video" autoplay playsinline></video>
@@ -67,7 +66,6 @@
             </div>
         </div>
 
-        <!-- Results and Controls -->
         <div class="flex flex-col items-center">
             <div class="w-full bg-blue-500 text-white p-6 rounded-2xl shadow-md mb-6 text-center">
                 <h2 class="text-2xl font-bold mb-2">ยอดรวมเงินสุทธิ (บาท)</h2>
@@ -101,13 +99,14 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-<!-- เพิ่มไลบรารี Paho MQTT สำหรับเว็บแอป -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+
+<script src="./paho-mqtt.min.js"></script>
+
 <script>
     // URL สำหรับโมเดล AI ของคุณ
     const URL = "https://teachablemachine.withgoogle.com/models/2o7w5yGpY/";
 
-    let model, webcam, labelContainer, maxPredictions;
+    let model, webcam, maxPredictions;
     let counts = { 'ธนบัตร 20 บาท': 0, 'ธนบัตร 50 บาท': 0, 'ธนบัตร 100 บาท': 0, 'ธนบัตร 500 บาท': 0, 'ธนบัตร 1000 บาท': 0, 'Background': 0 };
     let totalAmount = 0;
     let lastRecognizedClass = null;
@@ -135,8 +134,8 @@
                 useSSL: true
             });
         } else {
-            console.error("Paho library not loaded. Retrying in 2 seconds...");
-            setTimeout(connectMQTT, 2000);
+            console.error("Paho library not loaded. Check if the file 'paho-mqtt.min.js' is in the same folder.");
+            mqttStatusElement.innerText = "สถานะ MQTT: ไม่พบไลบรารี";
         }
     }
 
@@ -158,14 +157,14 @@
             console.error("MQTT Connection lost: " + responseObject.errorMessage);
             mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อหลุด";
             // ลองเชื่อมต่อใหม่
-            setTimeout(connectMQTT, 2000);
+            setTimeout(connectMQTT, 5000); // อาจจะเพิ่มเวลาหน่วงในการเชื่อมต่อใหม่
         }
     }
 
     // ฟังก์ชันสำหรับส่งข้อมูลไปยัง MQTT Broker
     function publishToMQTT(message, topic) {
         if (mqttClient && mqttClient.isConnected()) {
-            const mqttMessage = new Paho.Message(JSON.stringify(message));
+            const mqttMessage = new Paho.MQTT.Message(JSON.stringify(message));
             mqttMessage.destinationName = topic;
             mqttClient.send(mqttMessage);
             console.log(`Published to topic '${topic}': ${JSON.stringify(message)}`);
