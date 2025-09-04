@@ -265,22 +265,23 @@
         }
     }
 
-    // ฟังก์ชันสำหรับรีเซ็ตการนับ
+// ฟังก์ชันสำหรับรีเซ็ตการนับ
     function resetApp() {
         // ส่งข้อความรีเซ็ตไปยัง MQTT Broker
         const resetMessage = { reset: true };
         publishToMQTT(resetMessage, MQTT_RESET_TOPIC);
-
-        // รีเซ็ตการนับในเว็บแอป
-        counts = { 'ธนบัตร 20 บาท': 0, 'ธนบัตร 50 บาท': 0, 'ธนบัตร 100 บาท': 0, 'ธนบัตร 500 บาท': 0, 'ธนบัตร 1000 บาท': 0, 'Background': 0 };
+    
+        // รีเซ็ตการนับในเว็บแอปด้วย "ชื่อ Class ที่ถูกต้อง"
+        counts = { '20 บาท': 0, '50 บาท': 0, '100 บาท': 0, '500 บาท': 0, '1,000 บาท': 0, 'Background': 0 };
         totalAmount = 0;
         lastRecognizedClass = null;
-
-        document.getElementById('count-20').innerText = counts['ธนบัตร 20 บาท'];
-        document.getElementById('count-50').innerText = counts['ธนบัตร 50 บาท'];
-        document.getElementById('count-100').innerText = counts['ธนบัตร 100 บาท'];
-        document.getElementById('count-500').innerText = counts['ธนบัตร 500 บาท'];
-        document.getElementById('count-1000').innerText = counts['ธนบัตร 1000 บาท'];
+    
+        // อัปเดต UI ด้วย "ชื่อ Class ที่ถูกต้อง"
+        document.getElementById('count-20').innerText = counts['20 บาท'];
+        document.getElementById('count-50').innerText = counts['50 บาท'];
+        document.getElementById('count-100').innerText = counts['100 บาท'];
+        document.getElementById('count-500').innerText = counts['500 บาท'];
+        document.getElementById('count-1000').innerText = counts['1,000 บาท'];
         totalAmountElement.innerText = totalAmount;
     }
 
@@ -289,4 +290,5 @@
 
 </body>
 </html>
+
 
