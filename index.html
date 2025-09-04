@@ -107,7 +107,7 @@
     const URL = "https://teachablemachine.withgoogle.com/models/2o7w5yGpY/";
 
     let model, webcam, maxPredictions;
-    let counts = { 'ธนบัตร 20 บาท': 0, 'ธนบัตร 50 บาท': 0, 'ธนบัตร 100 บาท': 0, 'ธนบัตร 500 บาท': 0, 'ธนบัตร 1000 บาท': 0, 'Background': 0 };
+    let counts = { '20 บาท': 0, '50 บาท': 0, '100 บาท': 0, '500 บาท': 0, '1,000 บาท': 0, 'Background': 0 };
     let totalAmount = 0;
     let lastRecognizedClass = null;
 
@@ -222,18 +222,18 @@
         }
         
         // อัปเดตการนับเมื่อมีการจำแนกธนบัตรที่มั่นใจได้
-        if (highestPrediction.probability > 0.95 && highestPrediction.className !== 'Background') {
+        if (highestPrediction.probability > 0.90 && highestPrediction.className !== 'Background') {
             if (lastRecognizedClass !== highestPrediction.className) {
                 // อัปเดตยอดรวม
-                if (highestPrediction.className === 'ธนบัตร 20 บาท') {
+                if (highestPrediction.className === '20 บาท') {
                     totalAmount += 20;
-                } else if (highestPrediction.className === 'ธนบัตร 50 บาท') {
+                } else if (highestPrediction.className === '50 บาท') {
                     totalAmount += 50;
-                } else if (highestPrediction.className === 'ธนบัตร 100 บาท') {
+                } else if (highestPrediction.className === '100 บาท') {
                     totalAmount += 100;
-                } else if (highestPrediction.className === 'ธนบัตร 500 บาท') {
+                } else if (highestPrediction.className === '500 บาท') {
                     totalAmount += 500;
-                } else if (highestPrediction.className === 'ธนบัตร 1000 บาท') {
+                } else if (highestPrediction.className === '1,000 บาท') { // สังเกตว่ามี comma ตรงนี้
                     totalAmount += 1000;
                 }
 
@@ -252,11 +252,11 @@
                 if (counts[highestPrediction.className] !== undefined) {
                     counts[highestPrediction.className]++;
                 }
-                document.getElementById('count-20').innerText = counts['ธนบัตร 20 บาท'];
-                document.getElementById('count-50').innerText = counts['ธนบัตร 50 บาท'];
-                document.getElementById('count-100').innerText = counts['ธนบัตร 100 บาท'];
-                document.getElementById('count-500').innerText = counts['ธนบัตร 500 บาท'];
-                document.getElementById('count-1000').innerText = counts['ธนบัตร 1000 บาท'];
+                document.getElementById('count-20').innerText = counts['20 บาท'];
+                document.getElementById('count-50').innerText = counts['50 บาท'];
+                document.getElementById('count-100').innerText = counts['100 บาท'];
+                document.getElementById('count-500').innerText = counts['500 บาท'];
+                document.getElementById('count-1000').innerText = counts['1,000 บาท'];
 
                 lastRecognizedClass = highestPrediction.className;
             }
@@ -289,3 +289,4 @@
 
 </body>
 </html>
+
