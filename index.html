@@ -1,101 +1,292 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
-  <title>Teachable Machine Image Model (Mobile)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- ทำ responsive -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-    #webcam-container {
-      max-width: 100%;
-      margin: 10px auto;
-    }
-    video {
-      max-width: 100%;
-      height: auto;
-    }
-    #label-container {
-      margin: 10px;
-      font-size: 1.2em;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 1em;
-      margin: 5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบนับธนบัตรด้วย AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #334155;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .container {
+            width: 100%;
+            max-width: 960px;
+            background-color: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 75%; /* 4:3 Aspect Ratio */
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        #webcam-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    </style>
 </head>
-<body>
-  <div>Teachable Machine Image Model (Mobile)</div>
-  <button type="button" onclick="init('environment')">Start (Back Camera)</button>
-  <button type="button" onclick="init('user')">Start (Front Camera)</button>
-  <button type="button" onclick="stop()">Stop</button>
-  <div id="webcam-container"></div>
-  <div id="label-container"></div>
+<body class="bg-gray-100 p-8 flex items-center justify-center min-h-screen">
 
-  <script type="text/javascript">
-    const URL = "https://teachablemachine.withgoogle.com/models/hGmOXhF9c/";
+<div class="container mx-auto p-8 bg-white rounded-3xl shadow-lg">
+
+    <h1 class="text-4xl font-bold text-center mb-6 text-gray-800">ระบบนับธนบัตร</h1>
+    <p class="text-center text-gray-600 mb-8">
+        วางธนบัตรทีละใบหน้ากล้อง ระบบ AI จะทำการจำแนกและนับยอดรวมเงินสุทธิให้คุณ
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Video and Labels -->
+        <div class="flex flex-col items-center">
+            <div class="video-container mb-6">
+                <video id="webcam-video" autoplay playsinline></video>
+                <canvas id="label-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+            </div>
+            <div id="status" class="text-lg font-semibold text-center text-gray-700 mt-2">
+                สถานะ: กำลังโหลดโมเดล...
+            </div>
+            <div id="mqtt-status" class="text-sm text-gray-500 mt-2">
+                สถานะ MQTT: ไม่ได้เชื่อมต่อ
+            </div>
+        </div>
+
+        <!-- Results and Controls -->
+        <div class="flex flex-col items-center">
+            <div class="w-full bg-blue-500 text-white p-6 rounded-2xl shadow-md mb-6 text-center">
+                <h2 class="text-2xl font-bold mb-2">ยอดรวมเงินสุทธิ (บาท)</h2>
+                <div id="total-amount" class="text-5xl font-extrabold">0</div>
+            </div>
+            
+            <div class="w-full bg-gray-200 p-4 rounded-xl mb-4">
+                <h3 class="text-xl font-semibold mb-2 text-gray-700">ผลการจำแนก</h3>
+                <div id="prediction-results" class="text-sm font-medium text-gray-600">
+                    <p>ธนบัตร 20 บาท: <span id="count-20">0</span> ใบ</p>
+                    <p>ธนบัตร 50 บาท: <span id="count-50">0</span> ใบ</p>
+                    <p>ธนบัตร 100 บาท: <span id="count-100">0</span> ใบ</p>
+                    <p>ธนบัตร 500 บาท: <span id="count-500">0</span> ใบ</p>
+                    <p>ธนบัตร 1,000 บาท: <span id="count-1000">0</span> ใบ</p>
+                </div>
+            </div>
+            
+            <div class="w-full">
+                <button onclick="resetApp()" class="w-full py-3 px-6 bg-red-500 text-white font-bold rounded-full shadow-lg transition-transform transform hover:scale-105">
+                    รีเซ็ตการนับ
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="instruction" class="text-center text-gray-500 text-sm mt-8 italic">
+        *โปรดตรวจสอบให้แน่ใจว่ากล้องสามารถเห็นธนบัตรได้อย่างชัดเจนและไม่มีสิ่งกีดขวาง*
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+<!-- เพิ่มไลบรารี Paho MQTT สำหรับเว็บแอป -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+<script>
+    // URL สำหรับโมเดล AI ของคุณ
+    const URL = "https://teachablemachine.withgoogle.com/models/2o7w5yGpY/";
 
     let model, webcam, labelContainer, maxPredictions;
+    let counts = { 'ธนบัตร 20 บาท': 0, 'ธนบัตร 50 บาท': 0, 'ธนบัตร 100 บาท': 0, 'ธนบัตร 500 บาท': 0, 'ธนบัตร 1000 บาท': 0, 'Background': 0 };
+    let totalAmount = 0;
+    let lastRecognizedClass = null;
 
-    async function init(facingMode) {
-      const modelURL = URL + "model.json";
-      const metadataURL = URL + "metadata.json";
+    const statusElement = document.getElementById("status");
+    const totalAmountElement = document.getElementById("total-amount");
+    const mqttStatusElement = document.getElementById("mqtt-status");
 
-      model = await tmImage.load(modelURL, metadataURL);
-      maxPredictions = model.getTotalClasses();
+    // MQTT Client
+    let mqttClient;
+    const MQTT_BROKER = "broker.hivemq.com";
+    const MQTT_PORT = 8884;
+    const MQTT_TOPIC = "banknote_counter/total_amount"; // กำหนดหัวข้อ MQTT
+    const MQTT_RESET_TOPIC = "banknote_counter/reset";
+    const clientId = "web_" + parseInt(Math.random() * 10000000);
 
-      // ตั้งค่า Webcam สำหรับมือถือ โดยระบุ facingMode
-      webcam = new tmImage.Webcam(224, 224, false); // ใช้ 224x224 เหมือนเดิม
-      try {
-        await webcam.setup({ facingMode: facingMode }); // เลือกกล้องหน้า (user) หรือหลัง (environment)
-        await webcam.play();
-        if (!webcam.canvas) {
-          throw new Error("Webcam canvas is not initialized");
+    // ฟังก์ชันเชื่อมต่อ MQTT
+    function connectMQTT() {
+        if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined') {
+            mqttClient = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
+            mqttClient.onConnectionLost = onConnectionLost;
+            mqttClient.connect({
+                onSuccess: onConnect,
+                onFailure: onFailure,
+                useSSL: true
+            });
+        } else {
+            console.error("Paho library not loaded. Retrying in 2 seconds...");
+            setTimeout(connectMQTT, 2000);
         }
-        console.log("Webcam initialized, width:", webcam.canvas.width, "facingMode:", facingMode);
-        window.requestAnimationFrame(loop);
-      } catch (e) {
-        console.error("Webcam setup failed:", e);
-        document.getElementById("label-container").innerText = "Error: " + e.message;
-        return;
-      }
+    }
 
-      document.getElementById("webcam-container").appendChild(webcam.canvas);
-      labelContainer = document.getElementById("label-container");
-      labelContainer.innerHTML = ""; // ล้างผลลัพธ์เก่า
-      for (let i = 0; i < maxPredictions; i++) {
-        labelContainer.appendChild(document.createElement("div"));
-      }
+    // เมื่อเชื่อมต่อ MQTT สำเร็จ
+    function onConnect() {
+        console.log("MQTT Connected!");
+        mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อสำเร็จ";
+    }
+
+    // เมื่อการเชื่อมต่อ MQTT ล้มเหลว
+    function onFailure(response) {
+        console.error("MQTT Connection failed: " + response.errorMessage);
+        mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อล้มเหลว";
+    }
+
+    // เมื่อการเชื่อมต่อ MQTT หลุด
+    function onConnectionLost(responseObject) {
+        if (responseObject.errorCode !== 0) {
+            console.error("MQTT Connection lost: " + responseObject.errorMessage);
+            mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อหลุด";
+            // ลองเชื่อมต่อใหม่
+            setTimeout(connectMQTT, 2000);
+        }
+    }
+
+    // ฟังก์ชันสำหรับส่งข้อมูลไปยัง MQTT Broker
+    function publishToMQTT(message, topic) {
+        if (mqttClient && mqttClient.isConnected()) {
+            const mqttMessage = new Paho.Message(JSON.stringify(message));
+            mqttMessage.destinationName = topic;
+            mqttClient.send(mqttMessage);
+            console.log(`Published to topic '${topic}': ${JSON.stringify(message)}`);
+        } else {
+            console.error("MQTT Client is not connected.");
+        }
+    }
+
+    // โหลดโมเดลและเริ่มต้นเว็บแคม
+    async function init() {
+        try {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // เริ่มต้นเว็บแคม
+            const flip = true;
+            webcam = new tmImage.Webcam(400, 300, flip); // ขนาดเว็บแคม
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+            
+            // แสดงผลวิดีโอ
+            document.getElementById("webcam-video").srcObject = webcam.webcam.srcObject;
+
+            statusElement.innerText = "สถานะ: พร้อมใช้งาน";
+            
+            // เชื่อมต่อ MQTT
+            connectMQTT();
+
+        } catch (error) {
+            statusElement.innerText = "ข้อผิดพลาด: ไม่สามารถเข้าถึงเว็บแคมได้";
+            console.error(error);
+        }
     }
 
     async function loop() {
-      webcam.update();
-      await predict();
-      window.requestAnimationFrame(loop);
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
     }
 
     async function predict() {
-      const prediction = await model.predict(webcam.canvas);
-      for (let i = 0; i < maxPredictions; i++) {
-        const classPrediction = prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-        labelContainer.childNodes[i].innerHTML = classPrediction;
-      }
+        const prediction = await model.predict(webcam.canvas);
+        let highestPrediction = { className: 'Background', probability: 0 };
+
+        for (let i = 0; i < maxPredictions; i++) {
+            const classPrediction = prediction[i];
+            
+            if (classPrediction.probability > highestPrediction.probability) {
+                highestPrediction = classPrediction;
+            }
+        }
+        
+        // อัปเดตการนับเมื่อมีการจำแนกธนบัตรที่มั่นใจได้
+        if (highestPrediction.probability > 0.95 && highestPrediction.className !== 'Background') {
+            if (lastRecognizedClass !== highestPrediction.className) {
+                // อัปเดตยอดรวม
+                if (highestPrediction.className === 'ธนบัตร 20 บาท') {
+                    totalAmount += 20;
+                } else if (highestPrediction.className === 'ธนบัตร 50 บาท') {
+                    totalAmount += 50;
+                } else if (highestPrediction.className === 'ธนบัตร 100 บาท') {
+                    totalAmount += 100;
+                } else if (highestPrediction.className === 'ธนบัตร 500 บาท') {
+                    totalAmount += 500;
+                } else if (highestPrediction.className === 'ธนบัตร 1000 บาท') {
+                    totalAmount += 1000;
+                }
+
+                // ส่งข้อมูลไปยัง MQTT Broker
+                const message = {
+                    class: highestPrediction.className,
+                    total_amount: totalAmount,
+                    count: counts[highestPrediction.className] + 1
+                };
+                publishToMQTT(message, MQTT_TOPIC);
+
+                // อัปเดต UI ด้วยยอดรวมใหม่
+                totalAmountElement.innerText = totalAmount;
+
+                // อัปเดตจำนวนของแต่ละประเภท
+                if (counts[highestPrediction.className] !== undefined) {
+                    counts[highestPrediction.className]++;
+                }
+                document.getElementById('count-20').innerText = counts['ธนบัตร 20 บาท'];
+                document.getElementById('count-50').innerText = counts['ธนบัตร 50 บาท'];
+                document.getElementById('count-100').innerText = counts['ธนบัตร 100 บาท'];
+                document.getElementById('count-500').innerText = counts['ธนบัตร 500 บาท'];
+                document.getElementById('count-1000').innerText = counts['ธนบัตร 1000 บาท'];
+
+                lastRecognizedClass = highestPrediction.className;
+            }
+        } else if (highestPrediction.className === 'Background') {
+            lastRecognizedClass = 'Background';
+        }
     }
 
-    function stop() {
-      if (webcam) {
-        webcam.stop();
-        document.getElementById("webcam-container").innerHTML = '';
-        document.getElementById("label-container").innerHTML = '';
-      }
+    // ฟังก์ชันสำหรับรีเซ็ตการนับ
+    function resetApp() {
+        // ส่งข้อความรีเซ็ตไปยัง MQTT Broker
+        const resetMessage = { reset: true };
+        publishToMQTT(resetMessage, MQTT_RESET_TOPIC);
+
+        // รีเซ็ตการนับในเว็บแอป
+        counts = { 'ธนบัตร 20 บาท': 0, 'ธนบัตร 50 บาท': 0, 'ธนบัตร 100 บาท': 0, 'ธนบัตร 500 บาท': 0, 'ธนบัตร 1000 บาท': 0, 'Background': 0 };
+        totalAmount = 0;
+        lastRecognizedClass = null;
+
+        document.getElementById('count-20').innerText = counts['ธนบัตร 20 บาท'];
+        document.getElementById('count-50').innerText = counts['ธนบัตร 50 บาท'];
+        document.getElementById('count-100').innerText = counts['ธนบัตร 100 บาท'];
+        document.getElementById('count-500').innerText = counts['ธนบัตร 500 บาท'];
+        document.getElementById('count-1000').innerText = counts['ธนบัตร 1000 บาท'];
+        totalAmountElement.innerText = totalAmount;
     }
-  </script>
+
+    window.onload = init;
+</script>
+
 </body>
 </html>
