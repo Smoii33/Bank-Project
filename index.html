@@ -99,9 +99,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"
-        integrity="sha512-OSr/AUuT8r+uYGbQ+1n+yv6Z5s+mj/eNirvTiyv03Lq/J5wFhT+Q/T1e+2Z/s8v7L2HAQ20w13V65pWJtuu4g=="
-        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
 <script>
     const URL = "https://teachablemachine.withgoogle.com/models/2o7w5yGpY/";
@@ -117,18 +115,18 @@
 
     let mqttClient;
     const MQTT_BROKER = "broker.hivemq.com";
-    const MQTT_PORT = 8884;
+    const MQTT_PORT = 8884; // Port สำหรับ WebSocket (WSS)
     const MQTT_TOPIC = "banknote_counter/total_amount";
     const MQTT_RESET_TOPIC = "banknote_counter/reset";
     const clientId = "web_" + parseInt(Math.random() * 10000000);
 
     function connectMQTT() {
-        if (typeof Paho !== 'undefined' && typeof Paho.Client) {
+        // สำหรับเวอร์ชัน 1.0.1, เราควรจะเช็ค Paho.MQTT.Client
+        if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined' && Paho.MQTT.Client) {
             mqttStatusElement.innerText = "สถานะ MQTT: กำลังเชื่อมต่อ...";
             
-            // 💡💡💡 การแก้ไขที่สำคัญที่สุด! 💡💡💡
-            // สำหรับ v1.1.0 ต้องใช้ new Paho.Client (ไม่มี .MQTT)
-            mqttClient = new Paho.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
+            // 💡💡💡 แก้ไข: กลับไปใช้ Paho.MQTT.Client ตามเวอร์ชัน 1.0.1 💡💡💡
+            mqttClient = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
             
             mqttClient.onConnectionLost = onConnectionLost;
             mqttClient.onMessageArrived = onMessageArrived;
@@ -170,9 +168,8 @@
 
     function publishToMQTT(message, topic) {
         if (mqttClient && mqttClient.isConnected()) {
-            // 💡💡💡 การแก้ไขที่สำคัญ! 💡💡💡
-            // สำหรับ v1.1.0 ต้องใช้ new Paho.Message (ไม่มี .MQTT)
-            const mqttMessage = new Paho.Message(JSON.stringify(message));
+            // 💡💡💡 แก้ไข: กลับไปใช้ Paho.MQTT.Message ตามเวอร์ชัน 1.0.1 💡💡💡
+            const mqttMessage = new Paho.MQTT.Message(JSON.stringify(message));
             mqttMessage.destinationName = topic;
             mqttClient.send(mqttMessage);
             console.log(`Published to topic '${topic}': ${JSON.stringify(message)}`);
@@ -212,9 +209,8 @@
         const prediction = await model.predict(webcam.canvas);
         let highestPrediction = { className: 'Background', probability: 0 };
         for (let i = 0; i < maxPredictions; i++) {
-            const classPrediction = prediction[i];
-            if (classPrediction.probability > highestPrediction.probability) {
-                highestPrediction = classPrediction;
+            if (prediction[i].probability > highestPrediction.probability) {
+                highestPrediction = prediction[i];
             }
         }
         if (isReadyToCount && highestPrediction.probability > 0.95 && highestPrediction.className !== 'Background') {
@@ -227,20 +223,22 @@
                 case '500 บาท': amount = 500; break;
                 case '1,000 บาท': amount = 1000; break;
             }
-            totalAmount += amount;
-            counts[highestPrediction.className]++;
-            const message = {
-                class: "ธนบัตร " + highestPrediction.className,
-                total_amount: totalAmount,
-                count: counts[highestPrediction.className]
-            };
-            publishToMQTT(message, MQTT_TOPIC);
-            totalAmountElement.innerText = totalAmount;
-            document.getElementById('count-20').innerText = counts['20 บาท'];
-            document.getElementById('count-50').innerText = counts['50 บาท'];
-            document.getElementById('count-100').innerText = counts['100 บาท'];
-            document.getElementById('count-500').innerText = counts['500 บาท'];
-            document.getElementById('count-1000').innerText = counts['1,000 บาท'];
+            if (amount > 0) {
+                totalAmount += amount;
+                counts[highestPrediction.className]++;
+                const message = {
+                    class: "ธนบัตร " + highestPrediction.className,
+                    total_amount: totalAmount,
+                    count: counts[highestPrediction.className]
+                };
+                publishToMQTT(message, MQTT_TOPIC);
+                totalAmountElement.innerText = totalAmount;
+                document.getElementById('count-20').innerText = counts['20 บาท'];
+                document.getElementById('count-50').innerText = counts['50 บาท'];
+                document.getElementById('count-100').innerText = counts['100 บาท'];
+                document.getElementById('count-500').innerText = counts['500 บาท'];
+                document.getElementById('count-1000').innerText = counts['1,000 บาท'];
+            }
         } else if (!isReadyToCount && highestPrediction.className === 'Background') {
             isReadyToCount = true;
         }
