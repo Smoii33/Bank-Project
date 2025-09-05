@@ -99,8 +99,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-<!-- แก้ไข: เปลี่ยนไปใช้ Paho MQTT จาก CDN ที่เสถียรกว่า -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"
+        integrity="sha512-OSr/AUuT8r+uYGbQ+1n+yv6Z5s+mj/eNirvTiyv03Lq/J5wFhT+Q/T1e+2Z/s8v7L2HAQ20w13V65pWJtuu4g=="
+        crossorigin="anonymous"></script>
 
 <script>
     // URL สำหรับโมเดล AI ของคุณ
@@ -125,10 +126,11 @@
 
     // ฟังก์ชันเชื่อมต่อ MQTT
     function connectMQTT() {
+        // ตรวจสอบว่าไลบรารี Paho MQTT โหลดเสร็จแล้วหรือยัง
         if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined' && Paho.MQTT.Client) {
+            mqttStatusElement.innerText = "สถานะ MQTT: กำลังเชื่อมต่อ...";
             mqttClient = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
             mqttClient.onConnectionLost = onConnectionLost;
-            // เพิ่มฟังก์ชันสำหรับรับข้อความ
             mqttClient.onMessageArrived = onMessageArrived; 
             mqttClient.connect({
                 onSuccess: onConnect,
@@ -136,8 +138,10 @@
                 useSSL: true
             });
         } else {
-            console.error("MQTT library not loaded. Please check the script link.");
-            mqttStatusElement.innerText = "สถานะ MQTT: ไม่พบไลบรารี";
+            // 💡 แก้ไข: หากไลบรารียังไม่พร้อม ให้แสดงข้อความและลองใหม่ใน 5 วินาที
+            console.error("MQTT library not loaded. Retrying in 5 seconds...");
+            mqttStatusElement.innerText = "สถานะ MQTT: ไม่พบไลบรารี, กำลังลองใหม่...";
+            setTimeout(connectMQTT, 5000); // เรียกฟังก์ชันนี้อีกครั้ง
         }
     }
 
@@ -145,25 +149,24 @@
     function onConnect() {
         console.log("MQTT Connected!");
         mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อสำเร็จ";
-        // สมัครรับข้อมูลจากหัวข้อ
         mqttClient.subscribe(MQTT_TOPIC); 
     }
 
     // เมื่อการเชื่อมต่อ MQTT ล้มเหลว
     function onFailure(response) {
         console.error("MQTT Connection failed: " + response.errorMessage);
-        mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อล้มเหลว";
+        mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อล้มเหลว, ลองใหม่ใน 5 วิ...";
         // ลองเชื่อมต่อใหม่
-        setTimeout(connectMQTT, 5000); // อาจจะเพิ่มเวลาหน่วงในการเชื่อมต่อใหม่
+        setTimeout(connectMQTT, 5000);
     }
 
     // เมื่อการเชื่อมต่อ MQTT หลุด
     function onConnectionLost(responseObject) {
         if (responseObject.errorCode !== 0) {
             console.error("MQTT Connection lost: " + responseObject.errorMessage);
-            mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อหลุด";
+            mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อหลุด, ลองใหม่ใน 5 วิ...";
             // ลองเชื่อมต่อใหม่
-            setTimeout(connectMQTT, 5000); // อาจจะเพิ่มเวลาหน่วงในการเชื่อมต่อใหม่
+            setTimeout(connectMQTT, 5000);
         }
     }
 
@@ -194,19 +197,17 @@
             model = await tmImage.load(modelURL, metadataURL);
             maxPredictions = model.getTotalClasses();
 
-            // เริ่มต้นเว็บแคม
             const flip = true;
-            webcam = new tmImage.Webcam(400, 300, flip); // ขนาดเว็บแคม
+            webcam = new tmImage.Webcam(400, 300, flip);
             await webcam.setup();
             await webcam.play();
             window.requestAnimationFrame(loop);
             
-            // แสดงผลวิดีโอ
             document.getElementById("webcam-video").srcObject = webcam.webcam.srcObject;
 
             statusElement.innerText = "สถานะ: พร้อมใช้งาน";
             
-            // เชื่อมต่อ MQTT
+            // เริ่มต้นการเชื่อมต่อ MQTT
             connectMQTT();
 
         } catch (error) {
@@ -233,11 +234,9 @@
             }
         }
         
-        // Logic การนับใหม่
         if (isReadyToCount && highestPrediction.probability > 0.95 && highestPrediction.className !== 'Background') {
-            isReadyToCount = false; // ตั้งสถานะเป็นไม่พร้อมนับจนกว่าจะเห็นพื้นหลังอีกครั้ง
+            isReadyToCount = false;
             
-            // อัปเดตยอดรวม
             if (highestPrediction.className === '20 บาท') {
                 totalAmount += 20;
             } else if (highestPrediction.className === '50 บาท') {
@@ -250,10 +249,8 @@
                 totalAmount += 1000;
             }
 
-            // เพิ่มคำว่า "ธนบัตร" นำหน้าข้อความที่ส่งไปที่ MQTT
             const mqttClassName = "ธนบัตร " + highestPrediction.className;
             
-            // ส่งข้อมูลไปยัง MQTT Broker
             const message = {
                 class: mqttClassName,
                 total_amount: totalAmount,
@@ -261,10 +258,8 @@
             };
             publishToMQTT(message, MQTT_TOPIC);
 
-            // อัปเดต UI ด้วยยอดรวมใหม่
             totalAmountElement.innerText = totalAmount;
 
-            // อัปเดตจำนวนของแต่ละประเภท
             if (counts[highestPrediction.className] !== undefined) {
                 counts[highestPrediction.className]++;
             }
@@ -275,22 +270,19 @@
             document.getElementById('count-1000').innerText = counts['1,000 บาท'];
 
         } else if (!isReadyToCount && highestPrediction.className === 'Background') {
-            isReadyToCount = true; // เมื่อเห็นพื้นหลังแล้ว ก็พร้อมนับใบต่อไปได้
+            isReadyToCount = true;
         }
     }
 
     // ฟังก์ชันสำหรับรีเซ็ตการนับ
     function resetApp() {
-        // ส่งข้อความรีเซ็ตไปยัง MQTT Broker
         const resetMessage = { reset: true };
         publishToMQTT(resetMessage, MQTT_RESET_TOPIC);
     
-        // รีเซ็ตการนับในเว็บแอปด้วย "ชื่อ Class ที่ถูกต้อง"
         counts = { '20 บาท': 0, '50 บาท': 0, '100 บาท': 0, '500 บาท': 0, '1,000 บาท': 0, 'Background': 0 };
         totalAmount = 0;
         isReadyToCount = true;
     
-        // อัปเดต UI ด้วย "ชื่อ Class ที่ถูกต้อง"
         document.getElementById('count-20').innerText = counts['20 บาท'];
         document.getElementById('count-50').innerText = counts['50 บาท'];
         document.getElementById('count-100').innerText = counts['100 บาท'];
