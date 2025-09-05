@@ -123,9 +123,7 @@
     function connectMQTT() {
         if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined' && Paho.MQTT.Client) {
             mqttStatusElement.innerText = "สถานะ MQTT: กำลังเชื่อมต่อ...";
-            
             mqttClient = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
-            
             mqttClient.onConnectionLost = onConnectionLost;
             mqttClient.onMessageArrived = onMessageArrived;
             mqttClient.connect({
@@ -164,15 +162,15 @@
         console.log("Message received on topic " + message.destinationName + ": " + message.payloadString);
     }
 
-    // --- 💡 จุดที่แก้ไข #1 💡 ---
-    // ทำให้ฟังก์ชันนี้ส่งได้ทั้งข้อความธรรมดา (string) และ JSON object
+    // --- 💡 จุดที่ 1: ฟังก์ชันสำหรับส่งข้อมูล 💡 ---
+    // ฟังก์ชันนี้จะตรวจสอบข้อมูล ถ้าเป็น object จะแปลงเป็น JSON ถ้าเป็น string จะส่งออกไปตรงๆ
     function publishToMQTT(message, topic) {
         if (mqttClient && mqttClient.isConnected()) {
             let payload;
             if (typeof message === 'string') {
                 payload = message;
             } else {
-                payload = JSON.stringify(message); // ถ้าไม่ใช่ string ให้แปลงเป็น JSON
+                payload = JSON.stringify(message);
             }
             const mqttMessage = new Paho.MQTT.Message(payload);
             mqttMessage.destinationName = topic;
@@ -229,19 +227,18 @@
                 case '1,000 บาท': amount = 1000; break;
             }
             if (amount > 0) {
+                // ส่วนของการนับเงินและแสดงผลบนหน้าจอ ยังทำงานเหมือนเดิม
                 totalAmount += amount;
                 counts[highestPrediction.className]++;
+
+                // --- 💡 จุดที่ 2: สร้างข้อความที่จะส่ง 💡 ---
+                // ส่งค่าของธนบัตรที่เจอ (amount) เป็น string ออกไปตรงๆ
+                const message = String(amount);
                 
-                // --- 💡 จุดที่แก้ไข #2 💡 ---
-                // สร้าง message เป็น string ที่จัดรูปแบบแล้ว
-                const message = totalAmount.toLocaleString('en-US');
-                
-                // ส่งข้อความออกไป
                 publishToMQTT(message, MQTT_TOPIC);
                 
-                // อัปเดตหน้าจอให้มี comma ด้วย
-                totalAmountElement.innerText = message;
-                
+                // อัปเดตยอดรวมบนหน้าจอ
+                totalAmountElement.innerText = totalAmount.toLocaleString('en-US');
                 document.getElementById('count-20').innerText = counts['20 บาท'];
                 document.getElementById('count-50').innerText = counts['50 บาท'];
                 document.getElementById('count-100').innerText = counts['100 บาท'];
@@ -254,7 +251,7 @@
     }
 
     function resetApp() {
-        const resetMessage = { reset: true };
+        const resetMessage = { reset: true }; // การรีเซ็ตยังส่งเป็น JSON
         publishToMQTT(resetMessage, MQTT_RESET_TOPIC);
         counts = { '20 บาท': 0, '50 บาท': 0, '100 บาท': 0, '500 บาท': 0, '1,000 บาท': 0, 'Background': 0 };
         totalAmount = 0;
