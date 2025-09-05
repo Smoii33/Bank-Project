@@ -164,12 +164,20 @@
         console.log("Message received on topic " + message.destinationName + ": " + message.payloadString);
     }
 
+    // --- 💡 จุดที่แก้ไข #1 💡 ---
+    // ทำให้ฟังก์ชันนี้ส่งได้ทั้งข้อความธรรมดา (string) และ JSON object
     function publishToMQTT(message, topic) {
         if (mqttClient && mqttClient.isConnected()) {
-            const mqttMessage = new Paho.MQTT.Message(JSON.stringify(message));
+            let payload;
+            if (typeof message === 'string') {
+                payload = message;
+            } else {
+                payload = JSON.stringify(message); // ถ้าไม่ใช่ string ให้แปลงเป็น JSON
+            }
+            const mqttMessage = new Paho.MQTT.Message(payload);
             mqttMessage.destinationName = topic;
             mqttClient.send(mqttMessage);
-            console.log(`Published to topic '${topic}': ${JSON.stringify(message)}`);
+            console.log(`Published to topic '${topic}': ${payload}`);
         } else {
             console.error("MQTT Client is not connected. Message will not be sent.");
             mqttStatusElement.innerText = "สถานะ MQTT: ไม่ได้เชื่อมต่อ (ส่งข้อความไม่ได้)";
@@ -223,15 +231,17 @@
             if (amount > 0) {
                 totalAmount += amount;
                 counts[highestPrediction.className]++;
-                const message = {
-                    // --- 💡 จุดที่แก้ไข 💡 ---
-                    class: String(amount),
-                    // -----------------------
-                    total_amount: totalAmount,
-                    count: counts[highestPrediction.className]
-                };
+                
+                // --- 💡 จุดที่แก้ไข #2 💡 ---
+                // สร้าง message เป็น string ที่จัดรูปแบบแล้ว
+                const message = totalAmount.toLocaleString('en-US');
+                
+                // ส่งข้อความออกไป
                 publishToMQTT(message, MQTT_TOPIC);
-                totalAmountElement.innerText = totalAmount;
+                
+                // อัปเดตหน้าจอให้มี comma ด้วย
+                totalAmountElement.innerText = message;
+                
                 document.getElementById('count-20').innerText = counts['20 บาท'];
                 document.getElementById('count-50').innerText = counts['50 บาท'];
                 document.getElementById('count-100').innerText = counts['100 บาท'];
