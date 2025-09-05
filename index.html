@@ -121,11 +121,9 @@
     const clientId = "web_" + parseInt(Math.random() * 10000000);
 
     function connectMQTT() {
-        // สำหรับเวอร์ชัน 1.0.1, เราควรจะเช็ค Paho.MQTT.Client
         if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined' && Paho.MQTT.Client) {
             mqttStatusElement.innerText = "สถานะ MQTT: กำลังเชื่อมต่อ...";
             
-            // 💡💡💡 แก้ไข: กลับไปใช้ Paho.MQTT.Client ตามเวอร์ชัน 1.0.1 💡💡💡
             mqttClient = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
             
             mqttClient.onConnectionLost = onConnectionLost;
@@ -168,7 +166,6 @@
 
     function publishToMQTT(message, topic) {
         if (mqttClient && mqttClient.isConnected()) {
-            // 💡💡💡 แก้ไข: กลับไปใช้ Paho.MQTT.Message ตามเวอร์ชัน 1.0.1 💡💡💡
             const mqttMessage = new Paho.MQTT.Message(JSON.stringify(message));
             mqttMessage.destinationName = topic;
             mqttClient.send(mqttMessage);
@@ -227,7 +224,9 @@
                 totalAmount += amount;
                 counts[highestPrediction.className]++;
                 const message = {
-                    class: "ธนบัตร " + highestPrediction.className,
+                    // --- 💡 จุดที่แก้ไข 💡 ---
+                    class: String(amount),
+                    // -----------------------
                     total_amount: totalAmount,
                     count: counts[highestPrediction.className]
                 };
