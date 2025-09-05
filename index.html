@@ -71,7 +71,7 @@
                 <h2 class="text-2xl font-bold mb-2">ยอดรวมเงินสุทธิ (บาท)</h2>
                 <div id="total-amount" class="text-5xl font-extrabold">0</div>
             </div>
-            
+
             <div class="w-full bg-gray-200 p-4 rounded-xl mb-4">
                 <h3 class="text-xl font-semibold mb-2 text-gray-700">ผลการจำแนก</h3>
                 <div id="prediction-results" class="text-sm font-medium text-gray-600">
@@ -82,7 +82,7 @@
                     <p>ธนบัตร 1,000 บาท: <span id="count-1000">0</span> ใบ</p>
                 </div>
             </div>
-            
+
             <div class="w-full">
                 <button onclick="resetApp()" class="w-full py-3 px-6 bg-red-500 text-white font-bold rounded-full shadow-lg transition-transform transform hover:scale-105">
                     รีเซ็ตการนับ
@@ -90,7 +90,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="instruction" class="text-center text-gray-500 text-sm mt-8 italic">
         *โปรดตรวจสอบให้แน่ใจว่ากล้องสามารถเห็นธนบัตรได้อย่างชัดเจนและไม่มีสิ่งกีดขวาง*
     </div>
@@ -104,7 +104,6 @@
         crossorigin="anonymous"></script>
 
 <script>
-    // URL สำหรับโมเดล AI ของคุณ
     const URL = "https://teachablemachine.withgoogle.com/models/2o7w5yGpY/";
 
     let model, webcam, maxPredictions;
@@ -116,69 +115,64 @@
     const totalAmountElement = document.getElementById("total-amount");
     const mqttStatusElement = document.getElementById("mqtt-status");
 
-    // MQTT Client
     let mqttClient;
     const MQTT_BROKER = "broker.hivemq.com";
     const MQTT_PORT = 8884;
-    const MQTT_TOPIC = "banknote_counter/total_amount"; // กำหนดหัวข้อ MQTT
+    const MQTT_TOPIC = "banknote_counter/total_amount";
     const MQTT_RESET_TOPIC = "banknote_counter/reset";
     const clientId = "web_" + parseInt(Math.random() * 10000000);
 
-    // ฟังก์ชันเชื่อมต่อ MQTT
     function connectMQTT() {
-        // ตรวจสอบว่าไลบรารี Paho MQTT โหลดเสร็จแล้วหรือยัง
-        if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined' && Paho.MQTT.Client) {
+        if (typeof Paho !== 'undefined' && typeof Paho.Client) {
             mqttStatusElement.innerText = "สถานะ MQTT: กำลังเชื่อมต่อ...";
-            mqttClient = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
+            
+            // 💡💡💡 การแก้ไขที่สำคัญที่สุด! 💡💡💡
+            // สำหรับ v1.1.0 ต้องใช้ new Paho.Client (ไม่มี .MQTT)
+            mqttClient = new Paho.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
+            
             mqttClient.onConnectionLost = onConnectionLost;
-            mqttClient.onMessageArrived = onMessageArrived; 
+            mqttClient.onMessageArrived = onMessageArrived;
             mqttClient.connect({
                 onSuccess: onConnect,
                 onFailure: onFailure,
                 useSSL: true
             });
         } else {
-            // 💡 แก้ไข: หากไลบรารียังไม่พร้อม ให้แสดงข้อความและลองใหม่ใน 5 วินาที
             console.error("MQTT library not loaded. Retrying in 5 seconds...");
             mqttStatusElement.innerText = "สถานะ MQTT: ไม่พบไลบรารี, กำลังลองใหม่...";
-            setTimeout(connectMQTT, 5000); // เรียกฟังก์ชันนี้อีกครั้ง
-        }
-    }
-
-    // เมื่อเชื่อมต่อ MQTT สำเร็จ
-    function onConnect() {
-        console.log("MQTT Connected!");
-        mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อสำเร็จ";
-        mqttClient.subscribe(MQTT_TOPIC); 
-    }
-
-    // เมื่อการเชื่อมต่อ MQTT ล้มเหลว
-    function onFailure(response) {
-        console.error("MQTT Connection failed: " + response.errorMessage);
-        mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อล้มเหลว, ลองใหม่ใน 5 วิ...";
-        // ลองเชื่อมต่อใหม่
-        setTimeout(connectMQTT, 5000);
-    }
-
-    // เมื่อการเชื่อมต่อ MQTT หลุด
-    function onConnectionLost(responseObject) {
-        if (responseObject.errorCode !== 0) {
-            console.error("MQTT Connection lost: " + responseObject.errorMessage);
-            mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อหลุด, ลองใหม่ใน 5 วิ...";
-            // ลองเชื่อมต่อใหม่
             setTimeout(connectMQTT, 5000);
         }
     }
 
-    // ฟังก์ชันเมื่อได้รับข้อความจาก MQTT Broker
+    function onConnect() {
+        console.log("MQTT Connected!");
+        mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อสำเร็จ";
+        mqttClient.subscribe(MQTT_TOPIC);
+    }
+
+    function onFailure(response) {
+        console.error("MQTT Connection failed: " + response.errorMessage);
+        mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อล้มเหลว, ลองใหม่ใน 5 วิ...";
+        setTimeout(connectMQTT, 5000);
+    }
+
+    function onConnectionLost(responseObject) {
+        if (responseObject.errorCode !== 0) {
+            console.error("MQTT Connection lost: " + responseObject.errorMessage);
+            mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อหลุด, ลองใหม่ใน 5 วิ...";
+            setTimeout(connectMQTT, 5000);
+        }
+    }
+
     function onMessageArrived(message) {
         console.log("Message received on topic " + message.destinationName + ": " + message.payloadString);
     }
 
-    // ฟังก์ชันสำหรับส่งข้อมูลไปยัง MQTT Broker
     function publishToMQTT(message, topic) {
         if (mqttClient && mqttClient.isConnected()) {
-            const mqttMessage = new Paho.MQTT.Message(JSON.stringify(message));
+            // 💡💡💡 การแก้ไขที่สำคัญ! 💡💡💡
+            // สำหรับ v1.1.0 ต้องใช้ new Paho.Message (ไม่มี .MQTT)
+            const mqttMessage = new Paho.Message(JSON.stringify(message));
             mqttMessage.destinationName = topic;
             mqttClient.send(mqttMessage);
             console.log(`Published to topic '${topic}': ${JSON.stringify(message)}`);
@@ -188,28 +182,20 @@
         }
     }
 
-    // โหลดโมเดลและเริ่มต้นเว็บแคม
     async function init() {
         try {
             const modelURL = URL + "model.json";
             const metadataURL = URL + "metadata.json";
-
             model = await tmImage.load(modelURL, metadataURL);
             maxPredictions = model.getTotalClasses();
-
             const flip = true;
             webcam = new tmImage.Webcam(400, 300, flip);
             await webcam.setup();
             await webcam.play();
             window.requestAnimationFrame(loop);
-            
             document.getElementById("webcam-video").srcObject = webcam.webcam.srcObject;
-
             statusElement.innerText = "สถานะ: พร้อมใช้งาน";
-            
-            // เริ่มต้นการเชื่อมต่อ MQTT
             connectMQTT();
-
         } catch (error) {
             statusElement.innerText = "ข้อผิดพลาด: ไม่สามารถเข้าถึงเว็บแคมได้";
             console.error(error);
@@ -225,64 +211,47 @@
     async function predict() {
         const prediction = await model.predict(webcam.canvas);
         let highestPrediction = { className: 'Background', probability: 0 };
-
         for (let i = 0; i < maxPredictions; i++) {
             const classPrediction = prediction[i];
-            
             if (classPrediction.probability > highestPrediction.probability) {
                 highestPrediction = classPrediction;
             }
         }
-        
         if (isReadyToCount && highestPrediction.probability > 0.95 && highestPrediction.className !== 'Background') {
             isReadyToCount = false;
-            
-            if (highestPrediction.className === '20 บาท') {
-                totalAmount += 20;
-            } else if (highestPrediction.className === '50 บาท') {
-                totalAmount += 50;
-            } else if (highestPrediction.className === '100 บาท') {
-                totalAmount += 100;
-            } else if (highestPrediction.className === '500 บาท') {
-                totalAmount += 500;
-            } else if (highestPrediction.className === '1,000 บาท') {
-                totalAmount += 1000;
+            let amount = 0;
+            switch (highestPrediction.className) {
+                case '20 บาท': amount = 20; break;
+                case '50 บาท': amount = 50; break;
+                case '100 บาท': amount = 100; break;
+                case '500 บาท': amount = 500; break;
+                case '1,000 บาท': amount = 1000; break;
             }
-
-            const mqttClassName = "ธนบัตร " + highestPrediction.className;
-            
+            totalAmount += amount;
+            counts[highestPrediction.className]++;
             const message = {
-                class: mqttClassName,
+                class: "ธนบัตร " + highestPrediction.className,
                 total_amount: totalAmount,
-                count: counts[highestPrediction.className] + 1
+                count: counts[highestPrediction.className]
             };
             publishToMQTT(message, MQTT_TOPIC);
-
             totalAmountElement.innerText = totalAmount;
-
-            if (counts[highestPrediction.className] !== undefined) {
-                counts[highestPrediction.className]++;
-            }
             document.getElementById('count-20').innerText = counts['20 บาท'];
             document.getElementById('count-50').innerText = counts['50 บาท'];
             document.getElementById('count-100').innerText = counts['100 บาท'];
             document.getElementById('count-500').innerText = counts['500 บาท'];
             document.getElementById('count-1000').innerText = counts['1,000 บาท'];
-
         } else if (!isReadyToCount && highestPrediction.className === 'Background') {
             isReadyToCount = true;
         }
     }
 
-    // ฟังก์ชันสำหรับรีเซ็ตการนับ
     function resetApp() {
         const resetMessage = { reset: true };
         publishToMQTT(resetMessage, MQTT_RESET_TOPIC);
-    
         counts = { '20 บาท': 0, '50 บาท': 0, '100 บาท': 0, '500 บาท': 0, '1,000 บาท': 0, 'Background': 0 };
         totalAmount = 0;
         isReadyToCount = true;
-    
         document.getElementById('count-20').innerText = counts['20 บาท'];
         document.getElementById('count-50').innerText = counts['50 บาท'];
         document.getElementById('count-100').innerText = counts['100 บาท'];
