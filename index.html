@@ -134,7 +134,7 @@
                 useSSL: true
             });
         } else {
-            console.error("Paho library not loaded. Check if the file 'paho-mqtt.min.js' is in the same folder.");
+            console.error("Paho library not loaded. The link to the library may be incorrect.");
             mqttStatusElement.innerText = "สถานะ MQTT: ไม่พบไลบรารี";
         }
     }
@@ -238,9 +238,12 @@
                 totalAmount += 1000;
             }
 
+            // เพิ่มคำว่า "ธนบัตร" นำหน้าข้อความที่ส่งไปที่ MQTT
+            const mqttClassName = "ธนบัตร " + highestPrediction.className;
+            
             // ส่งข้อมูลไปยัง MQTT Broker
             const message = {
-                class: highestPrediction.className,
+                class: mqttClassName,
                 total_amount: totalAmount,
                 count: counts[highestPrediction.className] + 1
             };
