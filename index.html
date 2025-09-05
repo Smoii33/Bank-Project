@@ -100,7 +100,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
-<script src="./paho-mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
 
 <script>
     // URL สำหรับโมเดล AI ของคุณ
@@ -109,7 +109,7 @@
     let model, webcam, maxPredictions;
     let counts = { '20 บาท': 0, '50 บาท': 0, '100 บาท': 0, '500 บาท': 0, '1,000 บาท': 0, 'Background': 0 };
     let totalAmount = 0;
-    let lastRecognizedClass = null;
+    let isReadyToCount = true;
 
     const statusElement = document.getElementById("status");
     const totalAmountElement = document.getElementById("total-amount");
@@ -221,51 +221,50 @@
             }
         }
         
-        // อัปเดตการนับเมื่อมีการจำแนกธนบัตรที่มั่นใจได้
-        if (highestPrediction.probability > 0.90 && highestPrediction.className !== 'Background') {
-            if (lastRecognizedClass !== highestPrediction.className) {
-                // อัปเดตยอดรวม
-                if (highestPrediction.className === '20 บาท') {
-                    totalAmount += 20;
-                } else if (highestPrediction.className === '50 บาท') {
-                    totalAmount += 50;
-                } else if (highestPrediction.className === '100 บาท') {
-                    totalAmount += 100;
-                } else if (highestPrediction.className === '500 บาท') {
-                    totalAmount += 500;
-                } else if (highestPrediction.className === '1,000 บาท') { // สังเกตว่ามี comma ตรงนี้
-                    totalAmount += 1000;
-                }
-
-                // ส่งข้อมูลไปยัง MQTT Broker
-                const message = {
-                    class: highestPrediction.className,
-                    total_amount: totalAmount,
-                    count: counts[highestPrediction.className] + 1
-                };
-                publishToMQTT(message, MQTT_TOPIC);
-
-                // อัปเดต UI ด้วยยอดรวมใหม่
-                totalAmountElement.innerText = totalAmount;
-
-                // อัปเดตจำนวนของแต่ละประเภท
-                if (counts[highestPrediction.className] !== undefined) {
-                    counts[highestPrediction.className]++;
-                }
-                document.getElementById('count-20').innerText = counts['20 บาท'];
-                document.getElementById('count-50').innerText = counts['50 บาท'];
-                document.getElementById('count-100').innerText = counts['100 บาท'];
-                document.getElementById('count-500').innerText = counts['500 บาท'];
-                document.getElementById('count-1000').innerText = counts['1,000 บาท'];
-
-                lastRecognizedClass = highestPrediction.className;
+        // Logic การนับใหม่
+        if (isReadyToCount && highestPrediction.probability > 0.95 && highestPrediction.className !== 'Background') {
+            isReadyToCount = false; // ตั้งสถานะเป็นไม่พร้อมนับจนกว่าจะเห็นพื้นหลังอีกครั้ง
+            
+            // อัปเดตยอดรวม
+            if (highestPrediction.className === '20 บาท') {
+                totalAmount += 20;
+            } else if (highestPrediction.className === '50 บาท') {
+                totalAmount += 50;
+            } else if (highestPrediction.className === '100 บาท') {
+                totalAmount += 100;
+            } else if (highestPrediction.className === '500 บาท') {
+                totalAmount += 500;
+            } else if (highestPrediction.className === '1,000 บาท') {
+                totalAmount += 1000;
             }
-        } else if (highestPrediction.className === 'Background') {
-            lastRecognizedClass = 'Background';
+
+            // ส่งข้อมูลไปยัง MQTT Broker
+            const message = {
+                class: highestPrediction.className,
+                total_amount: totalAmount,
+                count: counts[highestPrediction.className] + 1
+            };
+            publishToMQTT(message, MQTT_TOPIC);
+
+            // อัปเดต UI ด้วยยอดรวมใหม่
+            totalAmountElement.innerText = totalAmount;
+
+            // อัปเดตจำนวนของแต่ละประเภท
+            if (counts[highestPrediction.className] !== undefined) {
+                counts[highestPrediction.className]++;
+            }
+            document.getElementById('count-20').innerText = counts['20 บาท'];
+            document.getElementById('count-50').innerText = counts['50 บาท'];
+            document.getElementById('count-100').innerText = counts['100 บาท'];
+            document.getElementById('count-500').innerText = counts['500 บาท'];
+            document.getElementById('count-1000').innerText = counts['1,000 บาท'];
+
+        } else if (!isReadyToCount && highestPrediction.className === 'Background') {
+            isReadyToCount = true; // เมื่อเห็นพื้นหลังแล้ว ก็พร้อมนับใบต่อไปได้
         }
     }
 
-// ฟังก์ชันสำหรับรีเซ็ตการนับ
+    // ฟังก์ชันสำหรับรีเซ็ตการนับ
     function resetApp() {
         // ส่งข้อความรีเซ็ตไปยัง MQTT Broker
         const resetMessage = { reset: true };
@@ -274,7 +273,7 @@
         // รีเซ็ตการนับในเว็บแอปด้วย "ชื่อ Class ที่ถูกต้อง"
         counts = { '20 บาท': 0, '50 บาท': 0, '100 บาท': 0, '500 บาท': 0, '1,000 บาท': 0, 'Background': 0 };
         totalAmount = 0;
-        lastRecognizedClass = null;
+        isReadyToCount = true;
     
         // อัปเดต UI ด้วย "ชื่อ Class ที่ถูกต้อง"
         document.getElementById('count-20').innerText = counts['20 บาท'];
@@ -290,5 +289,3 @@
 
 </body>
 </html>
-
-
