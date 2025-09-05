@@ -99,7 +99,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-
+<!-- แก้ไข: เปลี่ยนไปใช้ Paho MQTT จาก CDN ที่เสถียรกว่า -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
 
 <script>
@@ -125,16 +125,18 @@
 
     // ฟังก์ชันเชื่อมต่อ MQTT
     function connectMQTT() {
-        if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined') {
+        if (typeof Paho !== 'undefined' && typeof Paho.MQTT !== 'undefined' && Paho.MQTT.Client) {
             mqttClient = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), "/mqtt", clientId);
             mqttClient.onConnectionLost = onConnectionLost;
+            // เพิ่มฟังก์ชันสำหรับรับข้อความ
+            mqttClient.onMessageArrived = onMessageArrived; 
             mqttClient.connect({
                 onSuccess: onConnect,
                 onFailure: onFailure,
                 useSSL: true
             });
         } else {
-            console.error("Paho library not loaded. The link to the library may be incorrect.");
+            console.error("MQTT library not loaded. Please check the script link.");
             mqttStatusElement.innerText = "สถานะ MQTT: ไม่พบไลบรารี";
         }
     }
@@ -143,12 +145,16 @@
     function onConnect() {
         console.log("MQTT Connected!");
         mqttStatusElement.innerText = "สถานะ MQTT: เชื่อมต่อสำเร็จ";
+        // สมัครรับข้อมูลจากหัวข้อ
+        mqttClient.subscribe(MQTT_TOPIC); 
     }
 
     // เมื่อการเชื่อมต่อ MQTT ล้มเหลว
     function onFailure(response) {
         console.error("MQTT Connection failed: " + response.errorMessage);
         mqttStatusElement.innerText = "สถานะ MQTT: การเชื่อมต่อล้มเหลว";
+        // ลองเชื่อมต่อใหม่
+        setTimeout(connectMQTT, 5000); // อาจจะเพิ่มเวลาหน่วงในการเชื่อมต่อใหม่
     }
 
     // เมื่อการเชื่อมต่อ MQTT หลุด
@@ -161,6 +167,11 @@
         }
     }
 
+    // ฟังก์ชันเมื่อได้รับข้อความจาก MQTT Broker
+    function onMessageArrived(message) {
+        console.log("Message received on topic " + message.destinationName + ": " + message.payloadString);
+    }
+
     // ฟังก์ชันสำหรับส่งข้อมูลไปยัง MQTT Broker
     function publishToMQTT(message, topic) {
         if (mqttClient && mqttClient.isConnected()) {
@@ -169,7 +180,8 @@
             mqttClient.send(mqttMessage);
             console.log(`Published to topic '${topic}': ${JSON.stringify(message)}`);
         } else {
-            console.error("MQTT Client is not connected.");
+            console.error("MQTT Client is not connected. Message will not be sent.");
+            mqttStatusElement.innerText = "สถานะ MQTT: ไม่ได้เชื่อมต่อ (ส่งข้อความไม่ได้)";
         }
     }
 
